@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 import models
-
+from passlib.context import CryptContext
 # ================================
 # Users & Groups
 # ================================
@@ -13,6 +13,32 @@ def get_users_by_group(db: Session, group_id: int):
 
 def get_groups(db: Session):
     return db.query(models.Group).all()
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def get_user_by_email(db: Session, email: str):
+    return db.query(models.User).filter(models.User.email == email).first()
+
+def create_user(db: Session, user: schemas.UserCreate):
+    # パスワードをハッシュ化
+    hashed_password = get_password_hash(user.password)
+    
+    # DBモデルのインスタンス作成
+    db_user = models.User(
+        username=user.username,
+        email=user.email,
+        password_hash=hashed_password,
+        group_id=user.group_id,
+        role=user.role
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # ================================
 # FishData & eDNA & Hotpoint
