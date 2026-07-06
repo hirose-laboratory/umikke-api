@@ -80,3 +80,21 @@ class SuggestResponse(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+# --- Users に追加 ---
+class UserCreate(UserBase):
+    password: str # 登録時には平文のパスワードを受け取る
+    group_id: Optional[int] = None
+
+# --- EDNAPrediction を新規追加 ---
+class EDNAPredictionBase(BaseModel):
+    fish_id: int
+    latitude: float
+    longitude: float
+    target_timestamp: datetime
+    heatmap_value: Optional[float] = None
+
+class EDNAPredictionResponse(EDNAPredictionBase):
+    id: int
+    class Config:
+        from_attributes = True
