@@ -6,6 +6,13 @@ app = FastAPI(
     description="魚の生態、eDNA、海洋データ、およびユーザーを管理・抽出するAPIです。",
     version="1.0.0"
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # テスト用。本番では ["http://27.133.132.208:3000"] に絞るのを推奨
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 各機能ごとのルーターをマウント
 app.include_router(users.router)
