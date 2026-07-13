@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # ← ★これが不足していたためNameErrorになっていました
+from fastapi.middleware.cors import CORSMiddleware
 from routers import users, fish, ocean
 
 app = FastAPI(
@@ -11,7 +11,7 @@ app = FastAPI(
 # CORSの設定（Next.jsなどの別ポートからの通信を許可する）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 開発・テスト用。本番環境では特定のURLに絞ることを推奨
+    allow_origins=["*"],  # 開発・テスト用としてフルアクセス許可
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
