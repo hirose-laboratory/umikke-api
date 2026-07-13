@@ -102,3 +102,7 @@ class EDNAPredictionResponse(EDNAPredictionBase):
     id: int
     class Config:
         from_attributes = True
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
