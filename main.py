@@ -11,7 +11,8 @@ app = FastAPI(
 # CORSの設定（Next.jsなどの別ポートからの通信を許可する）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://27.133.132.208:3000/"], 
+    # ★ 修正ポイント: 末尾の "/" を削除しました
+    allow_origins=["http://27.133.132.208:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
