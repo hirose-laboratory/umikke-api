@@ -35,21 +35,21 @@ def read_users_by_group(group_id: int, db: Session = Depends(get_db)):
 def read_groups(db: Session = Depends(get_db)):
     return crud.get_groups(db)
 
-
 @router.post("/login")
 def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     # 1. ユーザーが存在するかチェック
     db_user = crud.get_user_by_email(db, email=user_credentials.email)
     if not db_user:
-        raise HTTPException(status_code=400, detail="Invalid email or password")
+        # ★ エラー詳細を分かりやすく変更
+        raise HTTPException(status_code=400, detail="エラー: このメールアドレスは登録されていません")
     
     # 2. パスワードが一致するかチェック
     if not crud.verify_password(user_credentials.password, db_user.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
+        # ★ エラー詳細を分かりやすく変更
+        raise HTTPException(status_code=400, detail="エラー: パスワードが間違っています")
     
-    # 3. 認証成功（本来はここでJWTトークンを生成しますが、今回はフロントを動かすための簡易トークンを返します）
     return {
         "message": "Login successful",
-        "token": "dummy_access_token_12345", # フロントエンドが localStorage に保存する用の仮トークン
+        "token": "dummy_access_token_12345",
         "email": db_user.email
     }
