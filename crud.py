@@ -15,8 +15,6 @@ def get_users_by_group(db: Session, group_id: int):
 def get_groups(db: Session):
     return db.query(models.Group).all()
 
-
-
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
