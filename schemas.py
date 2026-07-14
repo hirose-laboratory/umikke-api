@@ -2,10 +2,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-
-class UserDelete(BaseModel):
-    email: str
-
 # --- Groups ---
 class GroupBase(BaseModel):
     group_name: str
@@ -18,7 +14,8 @@ class GroupResponse(GroupBase):
 
 # --- Users ---
 class UserBase(BaseModel):
-    username: str
+    # ★ 修正: フロントから送信されない場合を考慮しデフォルト値を設定
+    username: Optional[str] = "ゲスト" 
     email: str
     role: Optional[str] = 'viewer'
 
@@ -90,7 +87,11 @@ class UserCreate(UserBase):
     password: str # 登録時には平文のパスワードを受け取る
     group_id: Optional[int] = None
 
-# --- EDNAPrediction を新規追加 ---
+# ★ 新規追加: アカウント削除用の型定義
+class UserDelete(BaseModel):
+    email: str
+
+# --- EDNAPrediction ---
 class EDNAPredictionBase(BaseModel):
     fish_id: int
     latitude: float
