@@ -3,6 +3,7 @@ from datetime import datetime
 import schemas
 import models
 from passlib.context import CryptContext
+
 # ================================
 # Users & Groups
 # ================================
@@ -15,10 +16,10 @@ def get_users_by_group(db: Session, group_id: int):
 def get_groups(db: Session):
     return db.query(models.Group).all()
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password):
     return pwd_context.hash(password)
@@ -41,6 +42,14 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    return db_user
+
+# ★ 新規追加: ユーザー削除処理
+def delete_user(db: Session, user_id: int):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user:
+        db.delete(db_user)
+        db.commit()
     return db_user
 
 # ================================
