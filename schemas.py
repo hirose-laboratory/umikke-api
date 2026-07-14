@@ -2,9 +2,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-# crud.py に追加
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+
+class UserDelete(BaseModel):
+    email: str
 
 # --- Groups ---
 class GroupBase(BaseModel):
