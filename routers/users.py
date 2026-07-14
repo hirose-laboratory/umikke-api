@@ -19,10 +19,22 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # 問題なければ作成処理を呼び出す
     return crud.create_user(db=db, user=user)
 
+@router.delete("/delete")
+def delete_user(user: UserDelete, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_email(db, email=user.email)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+    
+    # crud.pyにdelete_user関数を実装している前提です
+    crud.delete_user(db=db, user_id=db_user.id)
+    return {"message": "Account deleted successfully"}
 
 # ================================
 # 既存のAPI (GET)
 # ================================
+
+
+
 @router.get("/", response_model=List[schemas.UserResponse])
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud.get_users(db, skip=skip, limit=limit)
