@@ -1,0 +1,92 @@
+[
+  {
+    "latitude": 34.4831,
+    "longitude": 136.8445,
+    "record_timestamp": "2026-05-31T09:00:00",
+    "sst": 24.3,
+    "cha": 1.15,
+    "current_speed": 0.32,
+    "current_direction": 118.5
+  },
+  {
+    "latitude": 34.4905,
+    "longitude": 136.8512,
+    "record_timestamp": "2026-05-31T09:00:00",
+    "sst": 24.5,
+    "cha": 1.08,
+    "current_speed": 0.28,
+    "current_direction": 122.0
+  },
+  {
+    "latitude": 34.4562,
+    "longitude": 136.8390,
+    "record_timestamp": "2026-05-31T09:00:00",
+    "sst": 24.1,
+    "cha": 1.22,
+    "current_speed": 0.35,
+    "current_direction": 115.5
+  },
+  {
+    "latitude": 34.5010,
+    "longitude": 136.8601,
+    "record_timestamp": "2026-05-31T09:00:00",
+    "sst": 24.5,
+    "cha": 0.98,
+    "current_speed": 0.30,
+    "current_direction": 130.2
+  },
+  {
+    "latitude": 34.4680,
+    "longitude": 136.8288,
+    "record_timestamp": "2026-05-31T09:00:00",
+    "sst": 23.9,
+    "cha": 1.35,
+    "current_speed": 0.41,
+    "current_direction": 108.9
+  },
+  {
+    "latitude": 34.4950,
+    "longitude": 136.8530,
+    "record_timestamp": "2026-05-31T10:00:00",
+    "sst": 24.6,
+    "cha": 1.02,
+    "current_speed": 0.25,
+    "current_direction": 125.4
+  },
+  {
+    "latitude": 34.4590,
+    "longitude": 136.8150,
+    "record_timestamp": "2026-05-31T10:00:00",
+    "sst": 23.5,
+    "cha": 1.41,
+    "current_speed": 0.44,
+    "current_direction": 102.3
+  },
+  {
+    "latitude": 34.5100,
+    "longitude": 136.8850,
+    "record_timestamp": "2026-05-31T10:00:00",
+    "sst": 24.9,
+    "cha": 0.91,
+    "current_speed": 0.25,
+    "current_direction": 133.8
+  },
+  {
+    "latitude": 34.4520,
+    "longitude": 136.8450,
+    "record_timestamp": "2026-05-31T10:00:00",
+    "sst": 24.2,
+    "cha": 1.18,
+    "current_speed": 0.33,
+    "current_direction": 119.6
+  },
+  {
+    "latitude": 34.4850,
+    "longitude": 136.8200,
+    "record_timestamp": "2026-05-31T10:00:00",
+    "sst": 24.0,
+    "cha": 1.25,
+    "current_speed": 0.35,
+    "current_direction": 111.4
+  }
+]
