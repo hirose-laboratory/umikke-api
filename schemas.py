@@ -14,7 +14,7 @@ class GroupResponse(GroupBase):
 
 # --- Users ---
 class UserBase(BaseModel):
-    # ★ 修正: フロントから送信されない場合を考慮しデフォルト値を設定
+
     username: Optional[str] = "ゲスト" 
     email: str
     role: Optional[str] = 'viewer'
@@ -37,8 +37,7 @@ class FishDataResponse(FishDataBase):
         from_attributes = True
 
 # --- OceanData ---
-class OceanDataResponse(BaseModel):
-    id: int
+class OceanDataBase(BaseModel):
     latitude: float
     longitude: float
     record_timestamp: datetime
@@ -46,6 +45,12 @@ class OceanDataResponse(BaseModel):
     cha: Optional[float] = None
     current_speed: Optional[float] = None
     current_direction: Optional[float] = None
+
+class OceanDataCreate(OceanDataBase):
+    pass
+
+class OceanDataResponse(OceanDataBase):
+    id: int
     class Config:
         from_attributes = True
 
@@ -87,7 +92,6 @@ class UserCreate(UserBase):
     password: str # 登録時には平文のパスワードを受け取る
     group_id: Optional[int] = None
 
-# ★ 新規追加: アカウント削除用の型定義
 class UserDelete(BaseModel):
     email: str
 
