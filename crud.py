@@ -44,7 +44,6 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
-# ★ 新規追加: ユーザー削除処理
 def delete_user(db: Session, user_id: int):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if db_user:
@@ -81,3 +80,39 @@ def get_ocean_data_by_time_range(db: Session, start_time: datetime, end_time: da
         models.OceanData.record_timestamp >= start_time,
         models.OceanData.record_timestamp <= end_time
     ).all()
+
+def create_ocean_data(db: Session, ocean: schemas.OceanDataCreate):
+    db_ocean = models.OceanData(
+        latitude=ocean.latitude,
+        longitude=ocean.longitude,
+        record_timestamp=ocean.record_timestamp,
+        sst=ocean.sst,
+        cha=ocean.cha,
+        current_speed=ocean.current_speed,
+        current_direction=ocean.current_direction,
+    )
+    db.add(db_ocean)
+    db.commit()
+    db.refresh(db_ocean)
+    return db_ocean
+    
+def create_ocean_data_bulk(db: Session, ocean_list: list[schemas.OceanDataCreate]):
+    if not ocean_list:
+        return 0
+
+    mappings = [
+        {
+            "latitude": o.latitude,
+            "longitude": o.longitude,
+            "record_timestamp": o.record_timestamp,
+            "sst": o.sst,
+            "cha": o.cha,
+            "current_speed": o.current_speed,
+            "current_direction": o.current_direction,
+        }
+        for o in ocean_list
+    ]
+
+    db.bulk_insert_mappings(models.OceanData, mappings)
+    db.commit()
+    return len(mappings)
