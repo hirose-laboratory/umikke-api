@@ -69,6 +69,9 @@ def get_hotpoints_above_score(db: Session, min_score: float, limit: int = 50):
 def get_suggestions_by_fish(db: Session, fish_id: int):
     return db.query(models.Suggest).filter(models.Suggest.fish_id == fish_id).all()
 
+def get_edna_prediction_by_fish(db: Session, fish_id: int):
+    return db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id).all()
+
 # ================================
 # OceanData (期間・範囲指定による抽出パターン)
 # ================================
