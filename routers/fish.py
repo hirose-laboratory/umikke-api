@@ -25,3 +25,7 @@ def read_hotpoints(min_score: float = 0.5, limit: int = 50, db: Session = Depend
 @router.get("/{fish_id}/suggestions", response_model=List[schemas.SuggestResponse])
 def read_suggestions_by_fish(fish_id: int, db: Session = Depends(get_db)):
     return crud.get_suggestions_by_fish(db, fish_id=fish_id)
+
+@router.get("/{fish_id}/edna-prediction", response_model=List[schemas.EDNAPredictionResponse])
+def read_edna_prediction_by_fish(fish_id: int, db: Session = Depends(get_db)):
+    return crud.get_edna_prediction_by_fish(db, fish_id=fish_id)
