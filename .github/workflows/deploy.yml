@@ -30,5 +30,9 @@ jobs:
           --exclude=".venv" \
           --exclude="secret.yaml" \
           --exclude="*.keras" \
+          --exclude="CSV" \
+          --exclude="data" \
+          --exclude="images" \
+          --exclude="mask_blacked.png" \
           -e "ssh -o StrictHostKeyChecking=no" \
           ./ ubuntu@27.133.132.208:${{ secrets.REMOTE_PATH }}
