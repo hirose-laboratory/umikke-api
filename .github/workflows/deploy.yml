@@ -31,7 +31,6 @@ jobs:
           --exclude="secret.yaml" \
           --exclude="*.keras" \
           --exclude="CSV" \
-          --exclude="data" \
           --exclude="images" \
           --exclude="mask_blacked.png" \
           -e "ssh -o StrictHostKeyChecking=no" \
