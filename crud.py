@@ -72,6 +72,22 @@ def get_suggestions_by_fish(db: Session, fish_id: int):
 def get_edna_prediction_by_fish(db: Session, fish_id: int):
     return db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id).all()
 
+
+def create_edna_prediction(db: Session, prediction: schemas.EDNAPredictionBase):
+    db_pred = models.EDNAPrediction(**prediction.model_dump())
+    db.add(db_pred)
+    db.commit()
+    db.refresh(db_pred)
+    return db_pred
+
+# eDNA予測データの一括バルクインサート（予測モデル等の出力データ用）
+def create_edna_prediction_bulk(db: Session, prediction_list: list[schemas.EDNAPredictionBase]):
+    if not prediction_list:
+        return 0
+    mappings = [p.model_dump() for p in prediction_list]
+    db.bulk_insert_mappings(models.EDNAPrediction, mappings)
+    db.commit()
+    return len(mappings)
 # ================================
 # OceanData (期間・範囲指定による抽出パターン)
 # ================================
