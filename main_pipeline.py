@@ -1,11 +1,20 @@
 import sys
+import os
 import traceback
 from datetime import datetime
+from database import SessionLocal
 
 # 作成済みの各処理モジュールをインポート
-import test_csv
+import env_csv_save
 import infer_and_export
 import generate_hotpoints
+
+# ================================
+# パス設定（本スクリプトの配置場所を基準にした絶対パス）
+# ================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# もしサーバー上のCSVディレクトリ構成が異なる場合は、ここを "CSV" や "CSV/ocean" 等に合わせてください
+CSV_DIR = os.path.join(BASE_DIR, "CSV")
 
 def main():
     print("======================================================")
@@ -26,12 +35,20 @@ def main():
         base_time = datetime.now()
         print(f"--- 🕒 定期実行モード: {base_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
 
+    db = SessionLocal()
     try:
         # ----------------------------------------------------
-        # [1] CSVデータのDB登録処理 (test_csv.py)
+        # [1] CSVデータのDB登録処理 (env_csv_save.py)
         # ----------------------------------------------------
         print("\n>>> [1/3] 海況CSVデータのDB登録を開始します...")
-        test_csv.main() 
+        try:
+            # フォルダ内の全てのCSVを古い順にDBへ一括登録
+            total_inserted = env_csv_save.import_all_ocean_csvs_from_dir(CSV_DIR, db)
+            print(f"✅ 合計 {total_inserted} 件の海況データを DB に登録しました。")
+        except Exception as e:
+            print(f"❌ 海況CSVデータのDB登録中にエラーが発生しました: {e}")
+            db.rollback()
+            raise # ここで失敗した場合は後続のAI推論に影響するため処理を止める
 
         # ----------------------------------------------------
         # [2] AI推論処理 & eDNAデータ保存 (infer_and_export.py)
@@ -50,7 +67,8 @@ def main():
     except Exception as e:
         print(f"\n❌ パイプライン実行中に致命的なエラーが発生しました: {e}")
         traceback.print_exc()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     main()
-  
