@@ -1,9 +1,8 @@
 import argparse
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Optional
 
-import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
@@ -12,126 +11,113 @@ import schemas
 from database import SessionLocal
 
 # ================================
-# パス・定数設定（本スクリプトの配置場所を基準に絶対パス化）
+# パス設定（本スクリプトの配置場所を基準にした絶対パス）
 # ================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_DIR = os.path.join(BASE_DIR, "CSV", "edna")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# 対象エリアの空間定義（三重県沿岸部等）
-LAT_MIN, LAT_MAX = 34.22306, 34.37134
-LON_MIN, LON_MAX = 136.64863, 136.95686
+DEFAULT_CSV_DIR = os.path.join(BASE_DIR, "CSV", "edna")
 
 
-def export_edna_prediction_matrix_to_csv(
-    heatmap_matrix: np.ndarray,
-    fish_id: int,
-    target_timestamp: datetime,
-    output_filename: Optional[str] = None,
-    sea_mask: Optional[np.ndarray] = None
-) -> str:
+def import_edna_csv_to_db(csv_file_path: str, db: Session) -> int:
     """
-    【外部呼び出し用】推論モデルが出力した2次元グリッド行列(H, W)を
-    座標補間・整形し、eDNA予測CSVファイルとして一括出力します。
+    【外部呼び出し用】1つの eDNA CSV ファイルを読み込み、
+    データベース (eDNA_Prediction テーブル) に保存します。
 
-    :param heatmap_matrix: モデルの出力行列（2次元 numpy 配列）
-    :param fish_id: 魚種ID (models.FishData.id)
-    :param target_timestamp: 予測対象の日時 (datetime)
-    :param output_filename: 指定の出力ファイル名（未指定時は日付から自動生成）
-    :param sea_mask: 陸地マスク (True: 海域, False: 陸地)。指定時は陸地を除外
-    :return: 保存されたCSVファイルのパス
+    :param csv_file_path: 対象CSVファイルのパス
+    :param db: SQLAlchemy Session インスタンス
+    :return: 登録されたレコード件数
     """
-    h, w = heatmap_matrix.shape
-    lats = np.linspace(LAT_MAX, LAT_MIN, h)
-    lons = np.linspace(LON_MIN, LON_MAX, w)
+    if not os.path.exists(csv_file_path):
+        raise FileNotFoundError(f"CSVファイルが存在しません: {csv_file_path}")
 
-    ts_str = target_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    # CSVファイルのロード
+    df = pd.read_csv(csv_file_path)
 
-    records = []
-    for r in range(h):
-        for c in range(w):
-            # 陸地マスク指定時は陸地（False）をスキップ
-            if sea_mask is not None and not sea_mask[r, c]:
-                continue
+    # 必須カラムチェック
+    required_cols = {"fish_id", "latitude", "longitude", "target_timestamp", "heatmap_value"}
+    if not required_cols.issubset(df.columns):
+        missing = required_cols - set(df.columns)
+        raise ValueError(f"CSVのカラムが不十分です。不足: {missing} (ファイル: {csv_file_path})")
 
-            val = float(heatmap_matrix[r, c])
-            records.append({
-                "fish_id": fish_id,
-                "latitude": round(float(lats[r]), 6),
-                "longitude": round(float(lons[c]), 6),
-                "target_timestamp": ts_str,
-                "heatmap_value": round(val, 4)
-            })
+    if df.empty:
+        return 0
 
-    # Pydantic スキーマによるデータ検証
-    validated_data = [schemas.EDNAPredictionBase(**rec).model_dump() for rec in records]
-    df = pd.DataFrame(validated_data)
-
-    if not output_filename:
-        dt_str = target_timestamp.strftime("%Y%m%d")
-        output_filename = f"edna_pred_{fish_id}_{dt_str}.csv"
-
-    file_path = os.path.join(OUTPUT_DIR, output_filename)
-    df.to_csv(file_path, index=False, encoding="utf-8")
+    records = df.to_dict(orient="records")
     
-    return file_path
+    # 型変換および Pydantic バリデーション
+    mappings = []
+    for row in records:
+        # target_timestamp の datetime 変換
+        target_ts = pd.to_datetime(row["target_timestamp"]).to_pydatetime()
+        
+        # schemas.EDNAPredictionBase による入力検証
+        valid_data = schemas.EDNAPredictionBase(
+            fish_id=int(row["fish_id"]),
+            latitude=float(row["latitude"]),
+            longitude=float(row["longitude"]),
+            target_timestamp=target_ts,
+            heatmap_value=float(row["heatmap_value"]) if pd.notna(row["heatmap_value"]) else None
+        )
+        mappings.append(valid_data.model_dump())
+
+    # バルクインサート処理（高速一括登録）
+    db.bulk_insert_mappings(models.EDNAPrediction, mappings)
+    db.commit()
+
+    return len(mappings)
 
 
-def export_edna_prediction_db_to_csv(
-    db: Session,
-    fish_id: int = 1,
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None
-) -> str:
+def import_all_edna_csvs_from_dir(csv_dir: str, db: Session) -> int:
     """
-    【外部呼び出し / 手動実行用】データベース(eDNA_Prediction)内のレコードを検索し、
-    CSVファイルとして保存（エクスポート）します。
+    【外部呼び出し / 手動実行用】指定ディレクトリ内のすべての CSV ファイルを順次読み込み、
+    DB (eDNA_Prediction テーブル) に保存します。
+
+    :param csv_dir: CSVファイルが配置されているフォルダパス
+    :param db: SQLAlchemy Session インスタンス
+    :return: 合計登録件数
     """
-    query = db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id)
+    if not os.path.exists(csv_dir):
+        raise FileNotFoundError(f"指定されたディレクトリが存在しません: {csv_dir}")
 
-    if start_time:
-        query = query.filter(models.EDNAPrediction.target_timestamp >= start_time)
-    if end_time:
-        query = query.filter(models.EDNAPrediction.target_timestamp <= end_time)
+    csv_files = [f for f in os.listdir(csv_dir) if f.endswith(".csv")]
+    if not csv_files:
+        print(f"ℹ️ {csv_dir} 内に処理対象のCSVファイルが見つかりません。")
+        return 0
 
-    results = query.all()
+    total_inserted = 0
+    for filename in sorted(csv_files):
+        file_path = os.path.join(csv_dir, filename)
+        try:
+            count = import_edna_csv_to_db(file_path, db)
+            total_inserted += count
+            print(f"✅ DB登録完了: {filename} ({count} 件)")
+        except Exception as e:
+            db.rollback()
+            print(f"❌ DB登録失敗 ({filename}): {e}")
 
-    if not results:
-        raise ValueError(f"指定された条件に該当するeDNA予測データがDB上に存在しません (fish_id: {fish_id})")
-
-    # DBオブジェクトをスキーマ経由で辞書化
-    records = [
-        schemas.EDNAPredictionResponse.model_validate(row).model_dump()
-        for row in results
-    ]
-
-    df = pd.DataFrame(records)
-    
-    if "target_timestamp" in df.columns:
-        df["target_timestamp"] = pd.to_datetime(df["target_timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_path = os.path.join(OUTPUT_DIR, f"edna_db_export_fish{fish_id}_{timestamp_str}.csv")
-    df.to_csv(file_path, index=False, encoding="utf-8")
-
-    return file_path
+    return total_inserted
 
 
 # ================================
-# 手動実行時のメイン処理 (python export_edna.py)
+# 手動実行時のメイン処理 (python import_edna.py)
 # ================================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="eDNA 予測データの CSV エクスポートスクリプト")
-    parser.add_argument("--fish_id", type=int, default=1, help="対象の魚種ID (デフォルト: 1)")
+    parser = argparse.ArgumentParser(description="CSV形式の eDNA 予測データを DB (eDNA_Prediction) に保存します。")
+    parser.add_argument("--csv_path", type=str, default=None, help="単一のCSVファイルを保存する場合に指定")
+    parser.add_argument("--dir_path", type=str, default=DEFAULT_CSV_DIR, help="フォルダ内の全CSVを一括保存する場合に指定 (デフォルト: CSV/edna)")
     args = parser.parse_args()
-
-    print(f"🚀 [手動実行] DB(eDNA_Prediction) から魚種ID:{args.fish_id} のデータをCSVに出力します...")
 
     db = SessionLocal()
     try:
-        saved_path = export_edna_prediction_db_to_csv(db=db, fish_id=args.fish_id)
-        print(f"✅ 保存完了: {saved_path}")
+        if args.csv_path:
+            print(f"🚀 [手動実行] 単一CSVのDB保存を開始: {args.csv_path}")
+            count = import_edna_csv_to_db(args.csv_path, db)
+            print(f"🎉 完了: {count} 件のレコードを DB に登録しました。")
+        else:
+            print(f"🚀 [手動実行] ディレクトリ内の全CSV一括登録を開始: {args.dir_path}")
+            total = import_all_edna_csvs_from_dir(args.dir_path, db)
+            print(f"🎉 完了: 合計 {total} 件のレコードを DB に登録しました。")
     except Exception as e:
-        print(f"❌ エラーが発生しました: {e}")
+        db.rollback()
+        print(f"❌ 処理中にエラーが発生しました: {e}")
     finally:
         db.close()
