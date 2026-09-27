@@ -1,18 +1,24 @@
+import argparse
 import os
-import pandas as pd
-import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
+import pandas as pd
 from sqlalchemy.orm import Session
 
-import schemas
 import models
+import schemas
+from database import SessionLocal
 
-# 保存先ディレクトリの自動生成
-OUTPUT_DIR = os.path.join("CSV", "edna")
+# ================================
+# パス・定数設定（本スクリプトの配置場所を基準に絶対パス化）
+# ================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(BASE_DIR, "CSV", "edna")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 対象エリアの空間定義（例：三重県沿岸部）
+# 対象エリアの空間定義（三重県沿岸部等）
 LAT_MIN, LAT_MAX = 34.22306, 34.37134
 LON_MIN, LON_MAX = 136.64863, 136.95686
 
@@ -21,11 +27,11 @@ def export_edna_prediction_matrix_to_csv(
     heatmap_matrix: np.ndarray,
     fish_id: int,
     target_timestamp: datetime,
-    output_filename: str = None,
-    sea_mask: np.ndarray = None
+    output_filename: Optional[str] = None,
+    sea_mask: Optional[np.ndarray] = None
 ) -> str:
     """
-    【本番運用用】推論モデルが出力した2次元グリッド行列(H, W)を
+    【外部呼び出し用】推論モデルが出力した2次元グリッド行列(H, W)を
     座標補間・整形し、eDNA予測CSVファイルとして一括出力します。
 
     :param heatmap_matrix: モデルの出力行列（2次元 numpy 配列）
@@ -44,7 +50,7 @@ def export_edna_prediction_matrix_to_csv(
     records = []
     for r in range(h):
         for c in range(w):
-            # 陸地マスクがある場合は海域のみ抽出
+            # 陸地マスク指定時は陸地（False）をスキップ
             if sea_mask is not None and not sea_mask[r, c]:
                 continue
 
@@ -57,11 +63,10 @@ def export_edna_prediction_matrix_to_csv(
                 "heatmap_value": round(val, 4)
             })
 
-    # Pydantic スキーマによるデータ構造の検証
+    # Pydantic スキーマによるデータ検証
     validated_data = [schemas.EDNAPredictionBase(**rec).model_dump() for rec in records]
     df = pd.DataFrame(validated_data)
 
-    # 出力ファイル名の指定（デフォルト: edna_pred_{fish_id}_{YYYYMMDD}.csv）
     if not output_filename:
         dt_str = target_timestamp.strftime("%Y%m%d")
         output_filename = f"edna_pred_{fish_id}_{dt_str}.csv"
@@ -74,12 +79,12 @@ def export_edna_prediction_matrix_to_csv(
 
 def export_edna_prediction_db_to_csv(
     db: Session,
-    fish_id: int,
-    start_time: datetime = None,
-    end_time: datetime = None
+    fish_id: int = 1,
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None
 ) -> str:
     """
-    【本番運用用】データベース(eDNA_Prediction)内のレコードを検索し、
+    【外部呼び出し / 手動実行用】データベース(eDNA_Prediction)内のレコードを検索し、
     CSVファイルとして保存（エクスポート）します。
     """
     query = db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id)
@@ -92,7 +97,7 @@ def export_edna_prediction_db_to_csv(
     results = query.all()
 
     if not results:
-        raise ValueError(f"指定された条件に該当するeDNA予測データが存在しません (fish_id: {fish_id})")
+        raise ValueError(f"指定された条件に該当するeDNA予測データがDB上に存在しません (fish_id: {fish_id})")
 
     # DBオブジェクトをスキーマ経由で辞書化
     records = [
@@ -102,7 +107,6 @@ def export_edna_prediction_db_to_csv(
 
     df = pd.DataFrame(records)
     
-    # 日時表記の整形
     if "target_timestamp" in df.columns:
         df["target_timestamp"] = pd.to_datetime(df["target_timestamp"]).dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -111,3 +115,23 @@ def export_edna_prediction_db_to_csv(
     df.to_csv(file_path, index=False, encoding="utf-8")
 
     return file_path
+
+
+# ================================
+# 手動実行時のメイン処理 (python export_edna.py)
+# ================================
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="eDNA 予測データの CSV エクスポートスクリプト")
+    parser.add_argument("--fish_id", type=int, default=1, help="対象の魚種ID (デフォルト: 1)")
+    args = parser.parse_args()
+
+    print(f"🚀 [手動実行] DB(eDNA_Prediction) から魚種ID:{args.fish_id} のデータをCSVに出力します...")
+
+    db = SessionLocal()
+    try:
+        saved_path = export_edna_prediction_db_to_csv(db=db, fish_id=args.fish_id)
+        print(f"✅ 保存完了: {saved_path}")
+    except Exception as e:
+        print(f"❌ エラーが発生しました: {e}")
+    finally:
+        db.close()
