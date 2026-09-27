@@ -96,12 +96,13 @@ def load_img_tensor(path):
         return transform(Image.open(path).convert("RGB"))
     return torch.zeros((3, IMG_SIZE, IMG_SIZE))
 
-def prepare_input_data():
-    today = date.today()
+def prepare_input_data(base_time: datetime):
+    # base_time を基準に過去SEQ_IN日分のデータを取得
+    target_date_obj = base_time.date()
     env_frames = []
     
     for i in range(SEQ_IN, 0, -1):
-        target_date = today - timedelta(days=i)
+        target_date = target_date_obj - timedelta(days=i)
         d_str = target_date.strftime("%Y%m%d")
         
         sst_p = os.path.join(BASE_DIR, "images", "sst", f"sst_{d_str}.png")
@@ -114,10 +115,18 @@ def prepare_input_data():
     return torch.stack(env_frames).unsqueeze(0).to(DEVICE)
 
 # ==================== メイン処理（両方出力） ====================
-def main():
-    print("🚀 eDNA予測モデルの推論およびファイル生成を開始します...")
+# メインスクリプトから時刻を受け取れるように引数を追加
+def run_inference_and_export(base_time: datetime = None):
+    if base_time is None:
+        base_time = datetime.now()
+
+    print(f"🚀 eDNA予測モデルの推論およびファイル生成を開始します... (基準日: {base_time.strftime('%Y-%m-%d')})")
     
     # 1. モデルロード
+    if not os.path.exists(MODEL_PATH):
+        print(f"❌ モデルファイルが見つかりません: {MODEL_PATH}")
+        return
+
     model = OperationalSeq2SeqConvLSTM().to(DEVICE)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
     model.eval()
@@ -131,17 +140,17 @@ def main():
         sea_mask = np.ones((IMG_SIZE, IMG_SIZE), dtype=bool)
 
     # 3. 推論実行
-    input_tensor = prepare_input_data()
+    input_tensor = prepare_input_data(base_time)
     with torch.no_grad():
         preds = model(input_tensor, future_steps=SEQ_OUT).squeeze(0).cpu().numpy()
 
-    today = date.today()
+    target_date_obj = base_time.date()
     lats = np.linspace(LAT_MAX, LAT_MIN, IMG_SIZE)
     lons = np.linspace(LON_MIN, LON_MAX, IMG_SIZE)
 
     # 4. 各日付ごとに「画像」と「CSV」を同時出力
     for step in range(SEQ_OUT):
-        target_date = today + timedelta(days=step)
+        target_date = target_date_obj + timedelta(days=step)
         dt_str = target_date.strftime("%Y%m%d")
         ts_str = f"{target_date.strftime('%Y-%m-%d')} 12:00:00"
 
@@ -183,4 +192,5 @@ def main():
     print("🎉 すべての画像およびCSVファイルの出力が完了しました。")
 
 if __name__ == "__main__":
-    main()
+    # 単体で実行された場合は現在時刻で動く
+    run_inference_and_export()
