@@ -16,10 +16,31 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV_DIR = os.path.join(BASE_DIR, "CSV", "ocean")
 
 
+def parse_float_or_default(value: Optional[str], default: float = 0.0) -> float:
+    """
+    文字列を float に変換します。
+    空文字・None・変換失敗時はフロントエンド描画用のデフォルト値(0.0)を返します。
+    """
+    if value is None:
+        return default
+    if isinstance(value, str):
+        val_str = value.strip()
+        if val_str == "":
+            return default
+        try:
+            return float(val_str)
+        except ValueError:
+            return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def load_ocean_data_from_csv(filepath: str) -> List[schemas.OceanDataCreate]:
     """
-    CSVファイルを読み込み、空文字を None に変換した上で
-    schemas.OceanDataCreate のリストとして返します。
+    CSVファイルを読み込み、schemas.OceanDataCreate のリストとして返します。
+    ※フロントでの表示停止を防ぐため、欠損している項目は 0.0 に自動補正します。
     """
     records = []
 
@@ -27,18 +48,27 @@ def load_ocean_data_from_csv(filepath: str) -> List[schemas.OceanDataCreate]:
         reader = csv.DictReader(f)
 
         for i, row in enumerate(reader, start=1):
-            # CSVの空文字("")や空白を None に変換（Pydantic の数値変換エラーを防止）
-            cleaned_row = {
-                "latitude": float(row["latitude"]),
-                "longitude": float(row["longitude"]),
-                "record_timestamp": row["record_timestamp"],
-                "sst": float(row["sst"]) if row.get("sst") and row["sst"] != "" else 0.0,
-                "cha": float(row["cha"]) if row.get("cha") and row["cha"] != "" else 0.0,
-                "current_speed": float(row["current_speed"]) if row.get("current_speed") and row["current_speed"] != "" else 0.0,
-                "current_direction": float(row["current_direction"]) if row.get("current_direction") and row["current_direction"] != "" else 0
-            }
-
             try:
+                # 水温(sst)の判定
+                raw_sst = row.get("sst")
+                sst_val = (
+                    float(raw_sst.strip())
+                    if raw_sst and raw_sst.strip() != ""
+                    else None
+                )
+
+                # 行データの構築とデフォルト値(0.0)適用
+                cleaned_row = {
+                    "latitude": float(row["latitude"].strip()),
+                    "longitude": float(row["longitude"].strip()),
+                    "record_timestamp": row["record_timestamp"].strip(),
+                    "sst": sst_val,
+                    # cha, current_speed, current_direction が空の場合は 0.0 をセット
+                    "cha": parse_float_or_default(row.get("cha"), 0.0),
+                    "current_speed": parse_float_or_default(row.get("current_speed"), 0.0),
+                    "current_direction": parse_float_or_default(row.get("current_direction"), 0.0),
+                }
+
                 records.append(schemas.OceanDataCreate(**cleaned_row))
             except Exception as e:
                 print(f"⚠️ [警告] {filepath} の {i}行目のデータを読み込めませんでした: {e}")
