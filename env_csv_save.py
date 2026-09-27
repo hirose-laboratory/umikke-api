@@ -29,8 +29,13 @@ def load_ocean_data_from_csv(filepath: str) -> List[schemas.OceanDataCreate]:
         for i, row in enumerate(reader, start=1):
             # CSVの空文字("")や空白を None に変換（Pydantic の数値変換エラーを防止）
             cleaned_row = {
-                k: (v.strip() if v is not None and v.strip() != "" else None)
-                for k, v in row.items()
+                "latitude": float(row["latitude"]),
+                "longitude": float(row["longitude"]),
+                "record_timestamp": row["record_timestamp"],
+                "sst": float(row["sst"]) if row.get("sst") and row["sst"] != "" else 0.0,
+                "cha": float(row["cha"]) if row.get("cha") and row["cha"] != "" else 0.0,
+                "current_speed": float(row["current_speed"]) if row.get("current_speed") and row["current_speed"] != "" else 0.0,
+                "current_direction": float(row["current_direction"]) if row.get("current_direction") and row["current_direction"] != "" else 0
             }
 
             try:
