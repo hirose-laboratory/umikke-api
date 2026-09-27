@@ -1,29 +1,33 @@
 import os
-import glob
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision import transforms
 
-# ==================== 基本設定 ====================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IMAGE_DIR = os.path.join(BASE_DIR, "images")
-MASK_FILE_PATH = os.path.join(BASE_DIR, "mask_blacked.png")
-MODEL_PATH = os.path.join(BASE_DIR, "convlstm_op_final.pth")
+import schemas
 
-OUT_IMG_DIR = os.path.join(IMAGE_DIR, "edna")
+# ==================== ディレクトリ・パス設定 ====================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 入力ファイル
+MODEL_PATH = os.path.join(BASE_DIR, "convlstm_op_final.pth")
+MASK_FILE_PATH = os.path.join(BASE_DIR, "mask_blacked.png")
+
+# 出力フォルダ（自動作成）
+OUT_IMG_DIR = os.path.join(BASE_DIR, "images", "edna")
 OUT_CSV_DIR = os.path.join(BASE_DIR, "CSV", "edna")
 os.makedirs(OUT_IMG_DIR, exist_ok=True)
 os.makedirs(OUT_CSV_DIR, exist_ok=True)
 
+# 定数パラメータ
 IMG_SIZE = 128
 SEQ_IN = 5
 SEQ_OUT = 60
-FISH_ID = 1  # カタクチイワシ
+FISH_ID = 1  # 対象の魚種ID
 
 LAT_MIN, LAT_MAX = 34.22306, 34.37134
 LON_MIN, LON_MAX = 136.64863, 136.95686
@@ -82,7 +86,7 @@ class OperationalSeq2SeqConvLSTM(nn.Module):
         return (torch.zeros(batch_size, hidden_dim, h, w, device=DEVICE),
                 torch.zeros(batch_size, hidden_dim, h, w, device=DEVICE))
 
-# ==================== データ準備関数 ====================
+# ==================== 入力データ読み込み ====================
 def load_img_tensor(path):
     transform = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -100,76 +104,83 @@ def prepare_input_data():
         target_date = today - timedelta(days=i)
         d_str = target_date.strftime("%Y%m%d")
         
-        sst_p = os.path.join(IMAGE_DIR, "sst", f"sst_{d_str}.png")
-        chl_p = os.path.join(IMAGE_DIR, "chl", f"chl_{d_str}.png")
-        par_p = os.path.join(IMAGE_DIR, "par", f"par_{d_str}.png")
+        sst_p = os.path.join(BASE_DIR, "images", "sst", f"sst_{d_str}.png")
+        chl_p = os.path.join(BASE_DIR, "images", "chl", f"chl_{d_str}.png")
+        par_p = os.path.join(BASE_DIR, "images", "par", f"par_{d_str}.png")
         
         sst, chl, par = load_img_tensor(sst_p), load_img_tensor(chl_p), load_img_tensor(par_p)
         env_frames.append(torch.cat([sst, chl, par], dim=0))
         
-    return torch.stack(env_frames).unsqueeze(0).to(DEVICE) # (1, 5, 9, H, W)
+    return torch.stack(env_frames).unsqueeze(0).to(DEVICE)
 
-# ==================== メイン推論処理 ====================
-def run_inference():
-    print("🔮 推論処理を開始します...")
+# ==================== メイン処理（両方出力） ====================
+def main():
+    print("🚀 eDNA予測モデルの推論およびファイル生成を開始します...")
+    
+    # 1. モデルロード
     model = OperationalSeq2SeqConvLSTM().to(DEVICE)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
     model.eval()
-    
-    # 陸地マスク準備
+
+    # 2. 陸地マスク画像のロード
     if os.path.exists(MASK_FILE_PATH):
         mask_img = Image.open(MASK_FILE_PATH).convert("L")
         mask_np = np.array(mask_img.resize((IMG_SIZE, IMG_SIZE), Image.Resampling.NEAREST))
-        sea_mask = (mask_np < 128)  # 海域: True, 陸地: False
+        sea_mask = (mask_np < 128)
     else:
         sea_mask = np.ones((IMG_SIZE, IMG_SIZE), dtype=bool)
 
+    # 3. 推論実行
     input_tensor = prepare_input_data()
-    
     with torch.no_grad():
-        preds = model(input_tensor, future_steps=SEQ_OUT).squeeze(0).cpu().numpy() # (60, 3, 128, 128)
+        preds = model(input_tensor, future_steps=SEQ_OUT).squeeze(0).cpu().numpy()
 
     today = date.today()
     lats = np.linspace(LAT_MAX, LAT_MIN, IMG_SIZE)
     lons = np.linspace(LON_MIN, LON_MAX, IMG_SIZE)
 
+    # 4. 各日付ごとに「画像」と「CSV」を同時出力
     for step in range(SEQ_OUT):
         target_date = today + timedelta(days=step)
         dt_str = target_date.strftime("%Y%m%d")
         ts_str = f"{target_date.strftime('%Y-%m-%d')} 12:00:00"
-        
-        # 1. 予測ヒートマップ値の抽出（赤チャンネルを魚の密度指標とし0.0~1.0正規化）
-        heatmap_matrix = preds[step, 0, :, :] # (128, 128)
+
+        heatmap_matrix = preds[step, 0, :, :]
         heatmap_matrix[~sea_mask] = 0.0
-        
-        # 2. 画像の保存
-        img_out_path = os.path.join(OUT_IMG_DIR, f"edna_{dt_str}.png")
+
+        # --- A. 画像（PNG）出力 ---
+        img_path = os.path.join(OUT_IMG_DIR, f"edna_{dt_str}.png")
         plt.figure(figsize=(4, 4))
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis("off")
         plt.imshow(heatmap_matrix, cmap="hot", vmin=0, vmax=1)
-        plt.savefig(img_out_path, bbox_inches='tight', pad_inches=0, dpi=100)
+        plt.savefig(img_path, bbox_inches="tight", pad_inches=0, dpi=100)
         plt.close()
 
-        # 3. CSV出力（座標逆算＆1-0正規化データ）
+        # --- B. CSV 出力 ---
         records = []
         for r in range(IMG_SIZE):
             for c in range(IMG_SIZE):
                 if sea_mask[r, c]:
-                    val = round(float(heatmap_matrix[r, c]), 4)
-                    if val > 0.01: # 超軽量化のため極小値はカット（全グリッド保存時は判定解除）
-                        records.append({
-                            "fish_id": FISH_ID,
-                            "latitude": round(float(lats[r]), 6),
-                            "longitude": round(float(lons[c]), 6),
-                            "target_timestamp": ts_str,
-                            "heatmap_value": val
-                        })
+                    val = float(heatmap_matrix[r, c])
+                    records.append({
+                        "fish_id": FISH_ID,
+                        "latitude": round(float(lats[r]), 6),
+                        "longitude": round(float(lons[c]), 6),
+                        "target_timestamp": ts_str,
+                        "heatmap_value": round(val, 4)
+                    })
 
-        df = pd.DataFrame(records)
-        csv_out_path = os.path.join(OUT_CSV_DIR, f"edna_{dt_str}.csv")
-        df.to_csv(csv_out_path, index=False)
-        print(f"✅ 保存完了 [{step+1}/{SEQ_OUT}]: {dt_str} -> {csv_out_path}")
+        # Pydantic スキーマで検証後にデータフレーム変換
+        validated_records = [schemas.EDNAPredictionBase(**rec).model_dump() for rec in records]
+        df = pd.DataFrame(validated_records)
+        
+        csv_path = os.path.join(OUT_CSV_DIR, f"edna_{dt_str}.csv")
+        df.to_csv(csv_path, index=False, encoding="utf-8")
+
+        print(f"[{step+1}/{SEQ_OUT}] {dt_str} 出力完了 -> 画像: {img_path} | CSV: {csv_path}")
+
+    print("🎉 すべての画像およびCSVファイルの出力が完了しました。")
 
 if __name__ == "__main__":
-    run_inference()
+    main()
