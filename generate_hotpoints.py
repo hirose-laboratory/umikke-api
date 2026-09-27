@@ -1,36 +1,41 @@
-import os
+import sys
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import crud
 import schemas
 from database import SessionLocal
-from models import EDNAPrediction, Hotpoint  # models.py に定義されていると想定
+# ※ 実際の models.py の定義に合わせてインポートを調整してください
+from models import EDNAPrediction, Hotpoint
 
 # ==================== 設定情報 ====================
-# Hotpointとして抽出する閾値（例: prediction_value が 0.8 以上のものを抽出）
+# Hotpointとして抽出する閾値（例: intensity_score や prediction_value が 0.8 以上）
 HOTPOINT_THRESHOLD = 0.8
 
-# 何日先までの予測データを処理対象にするか（例: 向こう3日分）
+# 何日先までの予測データを処理対象にするか
 TARGET_DAYS_AHEAD = 3
 
 # ==================== 抽出・保存処理 ====================
-def generate_and_save_hotpoints():
+def generate_and_save_hotpoints(start_date=None):
     db = SessionLocal()
     try:
         print("======================================================")
         print(" 🔥 予測データからの Hotpoint 自動抽出・保存処理")
         print("======================================================\n")
 
-        # 1. 処理対象の期間を設定（現在時刻〜指定日数後まで）
-        now = datetime.now()
+        # 手動実行時などで開始日が指定されていればそれを使用、なければ現在時刻
+        if start_date:
+            now = start_date
+        else:
+            now = datetime.now()
+            
         target_end_time = now + timedelta(days=TARGET_DAYS_AHEAD)
         
         print(f"対象期間: {now.strftime('%Y-%m-%d %H:%M:%S')} 〜 {target_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"抽出閾値 (intensity_score): {HOTPOINT_THRESHOLD} 以上")
+        print(f"抽出閾値: {HOTPOINT_THRESHOLD} 以上")
 
         # 2. eDNA_Prediction テーブルから、条件に合う高濃度の予測データを取得
-        # ※実際のモデル定義（models.EDNAPrediction）のプロパティ名に合わせて変更してください
+        # ※実際のモデル定義のプロパティ名（predicted_timestamp 等）に合わせて変更してください
         high_density_predictions = db.query(EDNAPrediction).filter(
             EDNAPrediction.predicted_timestamp >= now,
             EDNAPrediction.predicted_timestamp <= target_end_time,
@@ -55,7 +60,7 @@ def generate_and_save_hotpoints():
             ).first()
 
             if not existing_hotpoint:
-                # schemas や crud を使わず、直接 SQLAlchemy の Model をインスタンス化して一括保存する
+                # Hotpointモデルのインスタンス化
                 new_hotpoint = Hotpoint(
                     fish_id=pred.fish_id,
                     latitude=pred.latitude,
@@ -80,5 +85,16 @@ def generate_and_save_hotpoints():
         db.close()
         print("\n=== 処理完了 ===")
 
+# ==================== メイン実行制御 ====================
 if __name__ == "__main__":
-    generate_hotpoints()
+    # コマンドライン引数で日付(YYYY-MM-DD)が渡されたら「手動実行モード」として動く
+    if len(sys.argv) > 1:
+        try:
+            manual_date = datetime.strptime(sys.argv[1], "%Y-%m-%d")
+            print(f"--- 手動実行モード: {sys.argv[1]} を基準日にして処理します ---")
+            generate_and_save_hotpoints(start_date=manual_date)
+        except ValueError:
+            print("❌ 日付のフォーマットが間違っています。例: python generate_hotpoints.py 2026-05-12")
+    else:
+        print("--- 定期実行モード (現在時刻を基準に自動処理) ---")
+        generate_and_save_hotpoints()
