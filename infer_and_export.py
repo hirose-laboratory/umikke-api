@@ -25,7 +25,7 @@ os.makedirs(OUT_CSV_DIR, exist_ok=True)
 
 # 定数パラメータ
 IMG_SIZE = 128
-SEQ_IN = 5
+SEQ_IN = 14
 SEQ_OUT = 60
 FISH_ID = 1  # 対象の魚種ID
 
