@@ -3,6 +3,7 @@ from datetime import datetime
 import schemas
 import models
 from passlib.context import CryptContext
+from typing import Optional
 
 # ================================
 # Users & Groups
@@ -88,6 +89,32 @@ def create_edna_prediction_bulk(db: Session, prediction_list: list[schemas.EDNAP
     db.bulk_insert_mappings(models.EDNAPrediction, mappings)
     db.commit()
     return len(mappings)
+
+def get_edna_actual_by_fish(db: Session, fish_id: int, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None):
+    query = db.query(models.EDNAActual).filter(models.EDNAActual.fish_id == fish_id)
+    if start_time:
+        query = query.filter(models.EDNAActual.sample_timestamp >= start_time)
+    if end_time:
+        query = query.filter(models.EDNAActual.sample_timestamp <= end_time)
+    return query.all()
+
+# ホットポイント (期間指定対応)
+def get_hotpoints_above_score(db: Session, min_score: float, limit: int = 50, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None):
+    query = db.query(models.Hotpoint).filter(models.Hotpoint.intensity_score >= min_score)
+    if start_time:
+        query = query.filter(models.Hotpoint.detected_timestamp >= start_time)
+    if end_time:
+        query = query.filter(models.Hotpoint.detected_timestamp <= end_time)
+    return query.order_by(models.Hotpoint.intensity_score.desc()).limit(limit).all()
+
+# eDNA予測値 (期間指定対応)
+def get_edna_prediction_by_fish(db: Session, fish_id: int, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None):
+    query = db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id)
+    if start_time:
+        query = query.filter(models.EDNAPrediction.target_timestamp >= start_time)
+    if end_time:
+        query = query.filter(models.EDNAPrediction.target_timestamp <= end_time)
+    return query.all()
 # ================================
 # OceanData (期間・範囲指定による抽出パターン)
 # ================================
