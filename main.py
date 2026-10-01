@@ -4,14 +4,12 @@ from routers import users, fish, ocean
 
 app = FastAPI(
     title="umikke System API",
-    description="魚の生態、eDNA、海洋データ、およびユーザーを管理・抽出するAPIです。",
+    description="apiテスト",
     version="1.0.0"
 )
 
-# CORSの設定（Next.jsなどの別ポートからの通信を許可する）
 app.add_middleware(
     CORSMiddleware,
-    # ★ 修正ポイント: 末尾の "/" を削除しました
     allow_origins=["http://27.133.132.208:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
