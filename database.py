@@ -7,9 +7,9 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URLが.envに設定されていません")
+    raise ValueError(".envに設定されていません")
 
-# MySQL用の設定（pool_pre_pingは接続切れ対策）
+# MySQL用の設定
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
