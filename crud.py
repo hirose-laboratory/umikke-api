@@ -4,6 +4,7 @@ import schemas
 import models
 from passlib.context import CryptContext
 from typing import Optional
+from sqlalchemy import delete  # ← パターン1のために追加
 
 # ================================
 # Users & Groups
@@ -115,6 +116,7 @@ def get_edna_prediction_by_fish(db: Session, fish_id: int, start_time: Optional[
     if end_time:
         query = query.filter(models.EDNAPrediction.target_timestamp <= end_time)
     return query.all()
+
 # ================================
 # OceanData (期間・範囲指定による抽出パターン)
 # ================================
@@ -146,6 +148,19 @@ def create_ocean_data_bulk(db: Session, ocean_list: list[schemas.OceanDataCreate
     if not ocean_list:
         return 0
 
+    # 1. 挿入しようとしているデータの日付（record_timestamp）を抽出
+    target_timestamps = list(set(o.record_timestamp for o in ocean_list))
+
+    # 2. その日時のデータを一度DBから一括削除する（重複防止・上書きのため）
+    if target_timestamps:
+        db.execute(
+            delete(models.OceanData).where(
+                models.OceanData.record_timestamp.in_(target_timestamps)
+            )
+        )
+        db.commit()
+
+    # 3. 新しいデータを一括挿入
     mappings = [
         {
             "latitude": o.latitude,
