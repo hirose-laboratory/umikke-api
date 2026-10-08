@@ -8,7 +8,7 @@ from models import EDNAPrediction, Hotpoint
 
 # 抽出条件の設定
 HOTPOINT_THRESHOLD = 0.8
-TARGET_DAYS_AHEAD = 3
+TARGET_DAYS_AHEAD = 60
 
 def generate_and_save_hotpoints(base_time: datetime):
     """
