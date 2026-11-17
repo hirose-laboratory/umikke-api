@@ -6,6 +6,7 @@ from passlib.context import CryptContext
 from typing import Optional
 from sqlalchemy import delete  # ← パターン1のために追加
 
+
 # ================================
 # Users & Groups
 # ================================
