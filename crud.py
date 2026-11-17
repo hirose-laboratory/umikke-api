@@ -72,6 +72,7 @@ def get_hotpoints_above_score(db: Session, min_score: float, limit: int = 50):
 def get_suggestions_by_fish(db: Session, fish_id: int):
     return db.query(models.Suggest).filter(models.Suggest.fish_id == fish_id).all()
 
+# crud.py の修正箇所
 def get_edna_prediction_by_fish(db: Session, fish_id: int, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None, limit: int = 5000):
     query = db.query(models.EDNAPrediction).filter(models.EDNAPrediction.fish_id == fish_id)
     if start_time:
@@ -79,8 +80,9 @@ def get_edna_prediction_by_fish(db: Session, fish_id: int, start_time: Optional[
     if end_time:
         query = query.filter(models.EDNAPrediction.target_timestamp <= end_time)
     
-    # 日時の新しい順に並び替え、指定件数（デフォルト5000件）で打ち切る
     return query.order_by(models.EDNAPrediction.target_timestamp.desc()).limit(limit).all()
+
+
 def create_edna_prediction(db: Session, prediction: schemas.EDNAPredictionBase):
     db_pred = models.EDNAPrediction(**prediction.model_dump())
     db.add(db_pred)
