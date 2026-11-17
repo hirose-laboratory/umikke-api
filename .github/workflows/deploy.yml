@@ -33,4 +33,4 @@ jobs:
           --exclude="CSV" \
           --exclude="images" \
           -e "ssh -o StrictHostKeyChecking=no" \
-          ./ ubuntu@27.133.132.208:${{ secrets.REMOTE_PATH }}
+          ./ umikke@163.43.230.76:/home/umikke/backend/
