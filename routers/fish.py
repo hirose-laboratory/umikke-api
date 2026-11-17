@@ -51,8 +51,14 @@ def read_edna_prediction_by_fish(
     fish_id: int, 
     start: Optional[datetime] = None, 
     end: Optional[datetime] = None, 
+    limit: int = 5000,  # ← 【追加】最大取得件数を設定（ブラウザが固まらない安全な数値）
     db: Session = Depends(get_db)
 ):
-    return crud.get_edna_prediction_by_fish(db, fish_id=fish_id, start_time=start, end_time=end)
-
+    return crud.get_edna_prediction_by_fish(
+        db, 
+        fish_id=fish_id, 
+        start_time=start, 
+        end_time=end, 
+        limit=limit  # ← 【追加】
+    )
 
